@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <?!= include('Stylesheet'); ?>
+</head>
+<body>
+
+  <!-- ===================== SETUP WIZARD ===================== -->
+  <div id="setupScreen" class="screen center-screen" style="display:none">
+    <div class="card login-card" style="width:360px">
+      <h1 data-i18n="setup_title">⚙️ Setup Faluang</h1>
+      <p class="muted" id="setupWhoAmI"></p>
+      <p class="muted" data-i18n="setup_desc">Tempel URL atau ID Google Spreadsheet yang mau kamu jadikan database. Kalau ini spreadsheet milik orang lain, minta mereka Share ke email Google kamu (di atas) dulu, minimal sebagai Viewer.</p>
+      <input type="text" id="setupInput" data-i18n-ph="setup_placeholder" placeholder="https://docs.google.com/spreadsheets/d/...." onkeydown="enterSubmit(event, doSetup)">
+      <button class="btn btn-primary full" data-i18n="setup_btn" onclick="doSetup()">Hubungkan</button>
+      <p id="setupError" class="error-text"></p>
+    </div>
+  </div>
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="loginScreen" class="screen center-screen" style="display:none">
+    <div class="card login-card">
+      <h1>💰 Faluang</h1>
+      <p class="muted" data-i18n="login_tagline">Kelola uang, buka peluang</p>
+      <p class="muted" data-i18n="login_sub">Masukkan PIN untuk masuk</p>
+      <input type="password" id="pinInput" data-i18n-ph="login_pin_ph" placeholder="PIN" maxlength="12" inputmode="numeric" onkeydown="enterSubmit(event, doLogin)">
+      <button class="btn btn-primary full" data-i18n="login_btn" onclick="doLogin()">Masuk</button>
+      <p id="loginError" class="error-text"></p>
+    </div>
+  </div>
+
+  <!-- ===================== APP ===================== -->
+  <div id="appScreen" class="screen" style="display:none">
+
+    <header class="topbar">
+      <div class="topbar-left">
+        <h2>💰 Faluang</h2>
+        <span id="roleBadge" class="badge"></span>
+      </div>
+      <div class="topbar-right">
+        <div id="ledgerSwitch" class="ledger-switch"></div>
+        <select id="langSelect" onchange="setLanguage(this.value)">
+          <option value="id">🇮🇩 ID</option>
+          <option value="en">🇬🇧 EN</option>
+        </select>
+        <button class="icon-btn" id="darkModeBtn" onclick="toggleDarkMode()">🌙</button>
+        <button class="btn btn-ghost" data-i18n="logout" onclick="logout()">Keluar</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="dashboard" data-i18n="tab_dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+      <button class="tab-btn" data-tab="transaksi" data-i18n="tab_transaksi" onclick="switchTab('transaksi')">Transaksi</button>
+      <button class="tab-btn" data-tab="aruskas" data-i18n="tab_aruskas" onclick="switchTab('aruskas')">Arus Kas</button>
+      <button class="tab-btn" data-tab="ai" data-i18n="tab_ai" onclick="switchTab('ai')">Tanya AI</button>
+      <button class="tab-btn" data-tab="pengaturan" data-i18n="tab_pengaturan" onclick="switchTab('pengaturan')">Pengaturan</button>
+    </nav>
+
+    <main class="content">
+
+      <!-- ---------- DASHBOARD ---------- -->
+      <section id="tab-dashboard" class="tab-panel active">
+        <div class="period-bar">
+          <select id="periodType" onchange="onPeriodTypeChange()">
+            <option value="bulanan" data-i18n="period_bulanan">Bulanan</option>
+            <option value="mingguan" data-i18n="period_mingguan">Mingguan</option>
+            <option value="tahunan" data-i18n="period_tahunan">Tahunan</option>
+          </select>
+          <select id="periodBulan"></select>
+          <select id="periodTahun"></select>
+          <select id="periodMinggu" style="display:none"></select>
+          <button class="btn btn-secondary" data-i18n="period_apply" onclick="loadDashboard()">Terapkan</button>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card income"><span class="summary-label" data-i18n="sum_pemasukan">Total Pemasukan</span><span class="summary-value" id="sumPemasukan">Rp 0</span></div>
+          <div class="summary-card expense"><span class="summary-label" data-i18n="sum_pengeluaran">Total Pengeluaran</span><span class="summary-value" id="sumPengeluaran">Rp 0</span></div>
+          <div class="summary-card transfer-in"><span class="summary-label" data-i18n="sum_transfer_masuk">Transfer Masuk</span><span class="summary-value" id="sumTransferMasuk">Rp 0</span></div>
+          <div class="summary-card transfer-out"><span class="summary-label" data-i18n="sum_transfer_keluar">Transfer Keluar</span><span class="summary-value" id="sumTransferKeluar">Rp 0</span></div>
+        </div>
+
+        <div class="saldo-bar">
+          <span data-i18n="saldo_label">Saldo Bersih Saat Ini (tidak terpengaruh periode)</span>
+          <strong id="saldoBersih">Rp 0</strong>
+        </div>
+
+        <div class="rincian-grid">
+          <div class="rincian-box card">
+            <h3 data-i18n="rincian_pengeluaran_title">Rincian Pengeluaran per Kategori</h3>
+            <div id="rincianPengeluaran"></div>
+          </div>
+          <div class="rincian-box card">
+            <h3 data-i18n="grafik_pengeluaran_title">Grafik Pengeluaran per Kategori</h3>
+            <div class="chart-wrap"><canvas id="chartPengeluaran"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- TRANSAKSI ---------- -->
+      <section id="tab-transaksi" class="tab-panel">
+        <div id="transaksiFormWrap" class="card form-card">
+          <h3 id="formTitle" data-i18n="form_tambah_title">Tambah Transaksi</h3>
+          <input type="hidden" id="editRowIndex">
+          <div class="form-grid">
+            <label><span data-i18n="label_tanggal">Tanggal</span> <input type="date" id="fTanggal"></label>
+            <label><span data-i18n="label_tipe">Tipe</span>
+              <select id="fTipe">
+                <option data-i18n="tipe_pemasukan">Pemasukan</option><option data-i18n="tipe_pengeluaran">Pengeluaran</option>
+                <option data-i18n="tipe_transfer_masuk">Transfer Masuk</option><option data-i18n="tipe_transfer_keluar">Transfer Keluar</option>
+              </select>
+            </label>
+            <label><span data-i18n="label_kategori">Kategori</span> <select id="fKategori"></select></label>
+            <label><span data-i18n="label_akun">Akun/Metode</span> <select id="fAkun"></select></label>
+            <label class="span2"><span data-i18n="label_deskripsi">Deskripsi</span> <input type="text" id="fDeskripsi" data-i18n-ph="deskripsi_ph" placeholder="cth: beli sate 11k" onkeydown="enterSubmit(event, submitTransaksi)"></label>
+            <label><span data-i18n="label_jumlah">Jumlah (Rp)</span> <input type="number" id="fJumlah" min="0" onkeydown="enterSubmit(event, submitTransaksi)"></label>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" data-i18n="btn_simpan" onclick="submitTransaksi()">Simpan</button>
+            <button class="btn btn-ghost" id="cancelEditBtn" style="display:none" data-i18n="btn_batal_edit" onclick="resetForm()">Batal Edit</button>
+          </div>
+        </div>
+
+        <div class="table-wrap card">
+          <table id="transaksiTable">
+            <thead><tr>
+              <th data-i18n="th_no">No</th><th data-i18n="th_tanggal">Tanggal</th><th data-i18n="th_tipe">Tipe</th>
+              <th data-i18n="th_kategori">Kategori</th><th data-i18n="th_akun">Akun</th><th data-i18n="th_deskripsi">Deskripsi</th>
+              <th data-i18n="th_debit">Debit</th><th data-i18n="th_kredit">Kredit</th><th data-i18n="th_saldo">Saldo</th><th></th>
+            </tr></thead>
+            <tbody id="transaksiBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---------- ARUS KAS ---------- -->
+      <section id="tab-aruskas" class="tab-panel">
+        <p class="muted" data-i18n="aruskas_desc">Rincian per akun/metode pembayaran untuk periode yang sedang dipilih di tab Dashboard. Kolom Saldo Saat Ini selalu real-time, tidak terpengaruh periode.</p>
+        <div class="rincian-grid">
+          <div class="card">
+            <h3 data-i18n="aruskas_table_title">Tabel Arus Kas per Akun</h3>
+            <table id="arusKasTable">
+              <thead><tr>
+                <th data-i18n="th_akun2">Akun</th><th data-i18n="th_pemasukan">Pemasukan</th>
+                <th data-i18n="th_pengeluaran">Pengeluaran</th><th data-i18n="th_saldo_sekarang">Saldo Saat Ini</th>
+              </tr></thead>
+              <tbody id="arusKasBody"></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <h3 data-i18n="aruskas_chart_title">Grafik Arus Kas per Akun</h3>
+            <div class="chart-wrap"><canvas id="chartArusKas"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- TANYA AI ---------- -->
+      <section id="tab-ai" class="tab-panel">
+        <div class="card">
+          <h3 data-i18n="ai_title">Tanya AI tentang keuanganmu</h3>
+          <p class="muted" data-i18n="ai_desc">Jawaban dihasilkan berdasarkan ringkasan data bulan berjalan pada ledger yang sedang aktif. Butuh API Key Gemini kamu sendiri (atur di tab Pengaturan).</p>
+          <div id="aiChatLog" class="ai-log"></div>
+          <div class="add-row">
+            <input type="text" id="aiQuestion" data-i18n-ph="ai_placeholder" placeholder="cth: pengeluaran terbesar bulan ini kategori apa?" onkeydown="enterSubmit(event, askAiQuestion)">
+            <button class="btn btn-primary" data-i18n="ai_btn" onclick="askAiQuestion()">Tanya</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- PENGATURAN ---------- -->
+      <section id="tab-pengaturan" class="tab-panel">
+
+        <div class="pengaturan-grid">
+          <div class="card">
+            <h3 data-i18n="pengaturan_kategori_title">Kategori (ledger aktif)</h3>
+            <div class="add-row"><input type="text" id="newKategori" data-i18n-ph="kategori_baru_ph" placeholder="Nama kategori baru" onkeydown="enterSubmit(event, () => addPengaturan('kategori'))"><button class="btn btn-secondary" data-i18n="btn_tambah" onclick="addPengaturan('kategori')">Tambah</button></div>
+            <ul id="listKategori" class="chip-list"></ul>
+          </div>
+          <div class="card">
+            <h3 data-i18n="pengaturan_akun_title">Akun/Metode (ledger aktif)</h3>
+            <div class="add-row"><input type="text" id="newAkun" data-i18n-ph="akun_baru_ph" placeholder="Nama akun baru" onkeydown="enterSubmit(event, () => addPengaturan('akun'))"><button class="btn btn-secondary" data-i18n="btn_tambah" onclick="addPengaturan('akun')">Tambah</button></div>
+            <ul id="listAkun" class="chip-list"></ul>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3 data-i18n="ganti_pin_title">Ganti PIN Saya</h3>
+          <div class="form-grid">
+            <label><span data-i18n="label_pin_lama">PIN Lama</span> <input type="password" id="oldPin" onkeydown="enterSubmit(event, submitChangePin)"></label>
+            <label><span data-i18n="label_pin_baru">PIN Baru</span> <input type="password" id="newPinInput" onkeydown="enterSubmit(event, submitChangePin)"></label>
+          </div>
+          <button class="btn btn-secondary" data-i18n="btn_ganti_pin" onclick="submitChangePin()">Ganti PIN</button>
+          <p id="pinChangeMsg" class="error-text"></p>
+        </div>
+
+        <div id="adminSection" style="display:none">
+          <div class="card" style="margin-top:16px">
+            <h3 data-i18n="kelola_ledger_title">Kelola Ledger (Akun Pembukuan)</h3>
+            <div class="add-row"><input type="text" id="newLedgerName" data-i18n-ph="ledger_baru_ph" placeholder="Nama ledger baru, cth: Bisnis" onkeydown="enterSubmit(event, addLedgerUI)"><button class="btn btn-secondary" data-i18n="btn_tambah_ledger" onclick="addLedgerUI()">Tambah Ledger</button></div>
+            <ul id="listLedger" class="chip-list"></ul>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <h3 data-i18n="kelola_user_title">Kelola User</h3>
+            <p class="muted" id="userFormHint">Isi Akses dengan nama ledger persis sama (bisa lebih dari satu, pisahkan koma), atau ketik ALL untuk semua ledger.</p>
+            <input type="hidden" id="editUserRowIndex">
+            <div class="form-grid">
+              <label><span data-i18n="label_nama">Nama</span> <input type="text" id="newUserNama" onkeydown="enterSubmit(event, submitUserForm)"></label>
+              <label><span data-i18n="label_pin">PIN</span> <input type="text" id="newUserPin" placeholder="Kosongkan saat edit kalau tidak mau ganti PIN" onkeydown="enterSubmit(event, submitUserForm)"></label>
+              <label><span data-i18n="label_akses">Akses (ALL atau nama ledger dipisah koma)</span>
+                <input type="text" id="newUserAkses" value="ALL" list="ledgerNamesList" onkeydown="enterSubmit(event, submitUserForm)">
+                <datalist id="ledgerNamesList"></datalist>
+              </label>
+              <label><span data-i18n="label_role">Role</span>
+                <select id="newUserRole"><option value="viewer">viewer</option><option value="admin">admin</option></select>
+              </label>
+            </div>
+            <button class="btn btn-secondary" id="userFormSubmitBtn" data-i18n="btn_tambah_user" onclick="submitUserForm()">Tambah User</button>
+            <button class="btn btn-ghost" id="cancelEditUserBtn" style="display:none" onclick="resetUserForm()">Batal Edit</button>
+            <table style="margin-top:12px">
+              <thead><tr><th data-i18n="th_nama">Nama</th><th data-i18n="th_akses">Akses</th><th data-i18n="th_role">Role</th><th></th></tr></thead>
+              <tbody id="userTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <h3 data-i18n="db_title">Database Spreadsheet</h3>
+            <p class="muted"><span data-i18n="db_current">Spreadsheet aktif:</span> <strong id="currentSpreadsheetName">-</strong></p>
+            <div class="add-row"><input type="text" id="changeSpreadsheetInput" data-i18n-ph="db_baru_ph" placeholder="URL/ID spreadsheet baru" onkeydown="enterSubmit(event, changeSpreadsheetUI)"><button class="btn btn-danger" data-i18n="btn_ganti_db" onclick="changeSpreadsheetUI()">Ganti</button></div>
+            <p class="muted" data-i18n="db_warning">⚠️ Mengganti ini akan memindahkan aplikasi ke spreadsheet lain sepenuhnya.</p>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <h3 data-i18n="ai_key_title">API Key AI (Gemini)</h3>
+            <p class="muted"><span data-i18n="ai_key_desc">Dapatkan API key gratis di</span> <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>. <span data-i18n="ai_key_desc2">Key ini disimpan di akun Google kamu sendiri, tidak dikirim ke pihak manapun selain Google.</span></p>
+            <div class="add-row"><input type="password" id="geminiKeyInput" data-i18n-ph="ai_key_ph" placeholder="Tempel API key di sini" onkeydown="enterSubmit(event, saveGeminiKeyUI)"><button class="btn btn-secondary" data-i18n="btn_simpan_key" onclick="saveGeminiKeyUI()">Simpan</button></div>
+            <p id="geminiKeyStatus" class="muted"></p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html>

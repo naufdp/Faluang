@@ -1,0 +1,640 @@
+<script>
+  let CURRENT_ROLE = null;
+  let CURRENT_USER_ROW = null;
+  let CURRENT_LEDGER = null;
+  let ACCESSIBLE_LEDGERS = [];
+  let PENGATURAN_CACHE = { kategori: [], akun: [], tipe: [] };
+  let chartPengeluaran = null, chartArusKas = null;
+  const BULAN_NAMA = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+  /* ============== DARK MODE & BAHASA ============== */
+  const I18N = {
+    id: {
+      setup_title: '⚙️ Setup Faluang', setup_desc: 'Tempel URL atau ID Google Spreadsheet yang mau kamu jadikan database. Kalau ini spreadsheet milik orang lain, minta mereka Share ke email Google kamu (di atas) dulu, minimal sebagai Viewer.', setup_placeholder: 'https://docs.google.com/spreadsheets/d/....', setup_btn: 'Hubungkan',
+      login_tagline: 'Kelola uang, buka peluang', login_sub: 'Masukkan PIN untuk masuk', login_pin_ph: 'PIN', login_btn: 'Masuk', logout: 'Keluar',
+      tab_dashboard: 'Dashboard', tab_transaksi: 'Transaksi', tab_aruskas: 'Arus Kas', tab_ai: 'Tanya AI', tab_pengaturan: 'Pengaturan',
+      period_bulanan: 'Bulanan', period_mingguan: 'Mingguan', period_tahunan: 'Tahunan', period_apply: 'Terapkan',
+      sum_pemasukan: 'Total Pemasukan', sum_pengeluaran: 'Total Pengeluaran', sum_transfer_masuk: 'Transfer Masuk', sum_transfer_keluar: 'Transfer Keluar',
+      saldo_label: 'Saldo Bersih Saat Ini (tidak terpengaruh periode)',
+      rincian_pengeluaran_title: 'Rincian Pengeluaran per Kategori', grafik_pengeluaran_title: 'Grafik Pengeluaran per Kategori',
+      form_tambah_title: 'Tambah Transaksi', label_tanggal: 'Tanggal', label_tipe: 'Tipe', label_kategori: 'Kategori', label_akun: 'Akun/Metode',
+      label_deskripsi: 'Deskripsi', deskripsi_ph: 'cth: beli sate 11k', label_jumlah: 'Jumlah (Rp)', btn_simpan: 'Simpan', btn_batal_edit: 'Batal Edit',
+      tipe_pemasukan: 'Pemasukan', tipe_pengeluaran: 'Pengeluaran', tipe_transfer_masuk: 'Transfer Masuk', tipe_transfer_keluar: 'Transfer Keluar',
+      th_no: 'No', th_tanggal: 'Tanggal', th_tipe: 'Tipe', th_kategori: 'Kategori', th_akun: 'Akun', th_deskripsi: 'Deskripsi', th_debit: 'Debit', th_kredit: 'Kredit', th_saldo: 'Saldo',
+      aruskas_desc: 'Rincian per akun/metode pembayaran untuk periode yang sedang dipilih di tab Dashboard. Kolom Saldo Saat Ini selalu real-time, tidak terpengaruh periode.',
+      aruskas_table_title: 'Tabel Arus Kas per Akun', aruskas_chart_title: 'Grafik Arus Kas per Akun',
+      th_akun2: 'Akun', th_pemasukan: 'Pemasukan', th_pengeluaran: 'Pengeluaran', th_saldo_sekarang: 'Saldo Saat Ini',
+      ai_title: 'Tanya AI tentang keuanganmu', ai_desc: 'Jawaban dihasilkan berdasarkan ringkasan data bulan berjalan pada ledger yang sedang aktif. Butuh API Key Gemini kamu sendiri (atur di tab Pengaturan).',
+      ai_placeholder: 'cth: pengeluaran terbesar bulan ini kategori apa?', ai_btn: 'Tanya',
+      pengaturan_kategori_title: 'Kategori (ledger aktif)', kategori_baru_ph: 'Nama kategori baru',
+      pengaturan_akun_title: 'Akun/Metode (ledger aktif)', akun_baru_ph: 'Nama akun baru', btn_tambah: 'Tambah',
+      ganti_pin_title: 'Ganti PIN Saya', label_pin_lama: 'PIN Lama', label_pin_baru: 'PIN Baru', btn_ganti_pin: 'Ganti PIN',
+      kelola_ledger_title: 'Kelola Ledger (Akun Pembukuan)', ledger_baru_ph: 'Nama ledger baru, cth: Bisnis', btn_tambah_ledger: 'Tambah Ledger',
+      kelola_user_title: 'Kelola User', label_nama: 'Nama', label_pin: 'PIN', label_akses: 'Akses (ALL atau nama ledger dipisah koma)', label_role: 'Role',
+      btn_tambah_user: 'Tambah User', th_nama: 'Nama', th_akses: 'Akses', th_role: 'Role',
+      db_title: 'Database Spreadsheet', db_current: 'Spreadsheet aktif:', db_baru_ph: 'URL/ID spreadsheet baru', btn_ganti_db: 'Ganti',
+      db_warning: '⚠️ Mengganti ini akan memindahkan aplikasi ke spreadsheet lain sepenuhnya.',
+      ai_key_title: 'API Key AI (Gemini)', ai_key_desc: 'Dapatkan API key gratis di', ai_key_desc2: 'Key ini disimpan di akun Google kamu sendiri, tidak dikirim ke pihak manapun selain Google.',
+      ai_key_ph: 'Tempel API key di sini', btn_simpan_key: 'Simpan'
+    },
+    en: {
+      setup_title: '⚙️ Faluang Setup', setup_desc: 'Paste the URL or ID of the Google Spreadsheet you want to use as the database. If this spreadsheet belongs to someone else, ask them to Share it with your Google email (above) first, at least as Viewer.', setup_placeholder: 'https://docs.google.com/spreadsheets/d/....', setup_btn: 'Connect',
+      login_tagline: 'Manage money, open opportunity', login_sub: 'Enter your PIN to sign in', login_pin_ph: 'PIN', login_btn: 'Sign in', logout: 'Sign out',
+      tab_dashboard: 'Dashboard', tab_transaksi: 'Transactions', tab_aruskas: 'Cash Flow', tab_ai: 'Ask AI', tab_pengaturan: 'Settings',
+      period_bulanan: 'Monthly', period_mingguan: 'Weekly', period_tahunan: 'Yearly', period_apply: 'Apply',
+      sum_pemasukan: 'Total Income', sum_pengeluaran: 'Total Expense', sum_transfer_masuk: 'Transfer In', sum_transfer_keluar: 'Transfer Out',
+      saldo_label: 'Current Net Balance (not affected by period)',
+      rincian_pengeluaran_title: 'Expense Breakdown by Category', grafik_pengeluaran_title: 'Expense Chart by Category',
+      form_tambah_title: 'Add Transaction', label_tanggal: 'Date', label_tipe: 'Type', label_kategori: 'Category', label_akun: 'Account/Method',
+      label_deskripsi: 'Description', deskripsi_ph: 'e.g.: bought lunch $3', label_jumlah: 'Amount', btn_simpan: 'Save', btn_batal_edit: 'Cancel Edit',
+      tipe_pemasukan: 'Income', tipe_pengeluaran: 'Expense', tipe_transfer_masuk: 'Transfer In', tipe_transfer_keluar: 'Transfer Out',
+      th_no: 'No', th_tanggal: 'Date', th_tipe: 'Type', th_kategori: 'Category', th_akun: 'Account', th_deskripsi: 'Description', th_debit: 'Debit', th_kredit: 'Credit', th_saldo: 'Balance',
+      aruskas_desc: 'Breakdown by account/payment method for the period selected in the Dashboard tab. The Current Balance column is always real-time, unaffected by the period.',
+      aruskas_table_title: 'Cash Flow Table by Account', aruskas_chart_title: 'Cash Flow Chart by Account',
+      th_akun2: 'Account', th_pemasukan: 'Income', th_pengeluaran: 'Expense', th_saldo_sekarang: 'Current Balance',
+      ai_title: 'Ask AI about your finances', ai_desc: "Answers are generated from a summary of this month's data on the active ledger. Requires your own Gemini API key (set it up in the Settings tab).",
+      ai_placeholder: 'e.g.: what was my biggest expense category this month?', ai_btn: 'Ask',
+      pengaturan_kategori_title: 'Categories (active ledger)', kategori_baru_ph: 'New category name',
+      pengaturan_akun_title: 'Accounts/Methods (active ledger)', akun_baru_ph: 'New account name', btn_tambah: 'Add',
+      ganti_pin_title: 'Change My PIN', label_pin_lama: 'Old PIN', label_pin_baru: 'New PIN', btn_ganti_pin: 'Change PIN',
+      kelola_ledger_title: 'Manage Ledgers', ledger_baru_ph: 'New ledger name, e.g.: Business', btn_tambah_ledger: 'Add Ledger',
+      kelola_user_title: 'Manage Users', label_nama: 'Name', label_pin: 'PIN', label_akses: 'Access (ALL or comma-separated ledger names)', label_role: 'Role',
+      btn_tambah_user: 'Add User', th_nama: 'Name', th_akses: 'Access', th_role: 'Role',
+      db_title: 'Database Spreadsheet', db_current: 'Active spreadsheet:', db_baru_ph: 'New spreadsheet URL/ID', btn_ganti_db: 'Switch',
+      db_warning: '⚠️ Switching this will move the whole app to a different spreadsheet.',
+      ai_key_title: 'AI API Key (Gemini)', ai_key_desc: 'Get a free API key at', ai_key_desc2: 'This key is stored in your own Google account and is never sent anywhere except Google.',
+      ai_key_ph: 'Paste your API key here', btn_simpan_key: 'Save'
+    }
+  };
+
+  let CURRENT_LANG = localStorage.getItem('faluang_lang') || 'id';
+
+  function setLanguage(lang) {
+    CURRENT_LANG = lang;
+    localStorage.setItem('faluang_lang', lang);
+    applyLanguage();
+  }
+
+  function applyLanguage() {
+    const dict = I18N[CURRENT_LANG] || I18N.id;
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (dict[key]) el.textContent = dict[key];
+    });
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+      const key = el.getAttribute('data-i18n-ph');
+      if (dict[key]) el.setAttribute('placeholder', dict[key]);
+    });
+    document.getElementById('langSelect').value = CURRENT_LANG;
+  }
+
+  function toggleDarkMode() {
+    const isDark = document.documentElement.classList.toggle('dark-mode');
+    localStorage.setItem('faluang_dark', isDark ? '1' : '0');
+    document.getElementById('darkModeBtn').innerText = isDark ? '☀️' : '🌙';
+    // Chart.js tidak otomatis re-render warna teks/grid saat tema berubah,
+    // jadi grafik yang sedang tampil kita gambar ulang.
+    if (chartPengeluaran) chartPengeluaran.destroy();
+    if (chartArusKas) chartArusKas.destroy();
+    if (document.getElementById('appScreen').style.display !== 'none') {
+      loadDashboard(); loadArusKas();
+    }
+  }
+
+  function initTheme() {
+    if (localStorage.getItem('faluang_dark') === '1') {
+      document.documentElement.classList.add('dark-mode');
+      document.getElementById('darkModeBtn').innerText = '☀️';
+    }
+    applyLanguage();
+  }
+
+  /* ============== BOOT ============== */
+  window.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    google.script.run.withSuccessHandler(me => {
+      const el = document.getElementById('setupWhoAmI');
+      if (el) el.innerText = 'Masuk sebagai: ' + me.email;
+    }).getMe();
+
+    google.script.run.withSuccessHandler(status => {
+      if (!status.configured) {
+        document.getElementById('setupScreen').style.display = 'flex';
+      } else {
+        document.getElementById('loginScreen').style.display = 'flex';
+      }
+    }).withFailureHandler(showErr).getAppStatus();
+  });
+
+  /* ============== SETUP WIZARD ============== */
+  function doSetup() {
+    const val = document.getElementById('setupInput').value.trim();
+    if (!val) return;
+    document.getElementById('setupError').innerText = '';
+    google.script.run.withSuccessHandler(res => {
+      if (!res.ok) { document.getElementById('setupError').innerText = res.error; return; }
+      document.getElementById('setupScreen').style.display = 'none';
+      document.getElementById('loginScreen').style.display = 'flex';
+      toast('Terhubung ke: ' + res.spreadsheetName);
+    }).withFailureHandler(showErr).saveSpreadsheetId(val);
+  }
+
+  /* ============== LOGIN / LOGOUT ============== */
+  function doLogin() {
+    const pin = document.getElementById('pinInput').value.trim();
+    if (!pin) return;
+    document.getElementById('loginError').innerText = '';
+    google.script.run.withSuccessHandler(res => {
+      if (!res.ok) { document.getElementById('loginError').innerText = 'PIN salah, coba lagi.'; return; }
+      CURRENT_ROLE = res.role;
+      CURRENT_USER_ROW = res.rowIndex;
+      ACCESSIBLE_LEDGERS = res.akses;
+      CURRENT_LEDGER = ACCESSIBLE_LEDGERS[0] || null;
+      initApp(res.nama);
+    }).withFailureHandler(showErr).login(pin);
+  }
+
+  function logout() {
+    CURRENT_ROLE = null;
+    document.getElementById('appScreen').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('pinInput').value = '';
+  }
+
+  /* ============== INIT APP ============== */
+  function initApp(nama) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appScreen').style.display = 'block';
+    document.getElementById('roleBadge').innerText = nama + ' (' + CURRENT_ROLE + ')';
+
+    renderLedgerSwitch();
+    document.getElementById('adminSection').style.display = CURRENT_ROLE === 'admin' ? 'block' : 'none';
+    applyRolePermissions();
+    setupPeriodSelectors();
+
+    if (!CURRENT_LEDGER) { toast('Kamu belum punya akses ke ledger manapun. Hubungi admin.'); return; }
+    refreshAll();
+  }
+
+  function renderLedgerSwitch() {
+    const wrap = document.getElementById('ledgerSwitch');
+    wrap.innerHTML = '';
+    ACCESSIBLE_LEDGERS.forEach(l => {
+      const b = document.createElement('button');
+      b.innerText = l;
+      b.dataset.ledger = l;
+      b.onclick = () => { CURRENT_LEDGER = l; updateLedgerButtons(); AI_HISTORY = []; document.getElementById('aiChatLog').innerHTML = ''; refreshAll(); };
+      wrap.appendChild(b);
+    });
+    updateLedgerButtons();
+  }
+
+  function updateLedgerButtons() {
+    document.querySelectorAll('.ledger-switch button').forEach(b => b.classList.toggle('active', b.dataset.ledger === CURRENT_LEDGER));
+  }
+
+  function applyRolePermissions() {
+    const readOnly = CURRENT_ROLE === 'viewer';
+    document.getElementById('transaksiFormWrap').style.display = readOnly ? 'none' : 'block';
+    document.querySelectorAll('#tab-pengaturan .add-row').forEach(el => {
+      if (!el.closest('#adminSection')) el.style.display = readOnly ? 'none' : 'flex';
+    });
+  }
+
+  function refreshAll() {
+    loadPengaturan();
+    loadDashboard();
+    loadTransaksi();
+    loadArusKas();
+    if (CURRENT_ROLE === 'admin') { loadLedgersUI(); loadUsersUI(); loadSpreadsheetInfo(); loadAiStatus(); }
+  }
+
+  /* ============== TABS ============== */
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+
+    // Chart.js menghitung ukuran canvas saat dibuat; kalau tab-nya waktu itu
+    // masih tersembunyi, ukurannya jadi 0 dan grafik tampak kosong.
+    // Resize ulang begitu tab-nya benar-benar terlihat.
+    setTimeout(() => {
+      if (tab === 'dashboard' && chartPengeluaran) chartPengeluaran.resize();
+      if (tab === 'aruskas' && chartArusKas) chartArusKas.resize();
+    }, 50);
+  }
+
+  /* ============== PERIOD ============== */
+  function setupPeriodSelectors() {
+    const bulanSel = document.getElementById('periodBulan');
+    bulanSel.innerHTML = BULAN_NAMA.map((b, i) => `<option value="${i+1}">${b}</option>`).join('');
+    const now = new Date();
+    bulanSel.value = now.getMonth() + 1;
+
+    const tahunSel = document.getElementById('periodTahun');
+    let opts = '';
+    for (let y = now.getFullYear() - 3; y <= now.getFullYear() + 1; y++) opts += `<option value="${y}">${y}</option>`;
+    tahunSel.innerHTML = opts;
+    tahunSel.value = now.getFullYear();
+  }
+
+  function onPeriodTypeChange() {
+    const type = document.getElementById('periodType').value;
+    document.getElementById('periodBulan').style.display = type === 'bulanan' ? 'inline-block' : 'none';
+    document.getElementById('periodMinggu').style.display = type === 'mingguan' ? 'inline-block' : 'none';
+    if (type === 'mingguan') loadDaftarMinggu();
+    loadDashboard();
+    loadArusKas();
+  }
+
+  function loadDaftarMinggu() {
+    google.script.run.withSuccessHandler(list => {
+      document.getElementById('periodMinggu').innerHTML = list.map(w => `<option value="${w}">${w}</option>`).join('');
+    }).withFailureHandler(showErr).getDaftarMinggu(CURRENT_LEDGER);
+  }
+
+  function currentPeriodParams() {
+    return {
+      type: document.getElementById('periodType').value,
+      bulan: document.getElementById('periodBulan').value,
+      tahun: document.getElementById('periodTahun').value,
+      minggu: document.getElementById('periodMinggu').value
+    };
+  }
+
+  /* ============== DASHBOARD ============== */
+  function loadDashboard() {
+    const p = currentPeriodParams();
+    google.script.run.withSuccessHandler(renderDashboard).withFailureHandler(showErr)
+      .getDashboard(CURRENT_LEDGER, p.type, p);
+  }
+
+  function renderDashboard(d) {
+    document.getElementById('sumPemasukan').innerText = rupiah(d.pemasukan);
+    document.getElementById('sumPengeluaran').innerText = rupiah(d.pengeluaran);
+    document.getElementById('sumTransferMasuk').innerText = rupiah(d.transferMasuk);
+    document.getElementById('sumTransferKeluar').innerText = rupiah(d.transferKeluar);
+    document.getElementById('saldoBersih').innerText = rupiah(d.saldoBersih);
+    document.getElementById('rincianPengeluaran').innerHTML = renderRincian(d.rincianPengeluaran);
+    renderChartPengeluaran(d.rincianPengeluaran);
+  }
+
+  function renderRincian(list) {
+    if (!list.length) return '<p class="muted">Belum ada data.</p>';
+    return list.map(r => `
+      <div class="rincian-row-wrap">
+        <div class="rincian-row"><span>${r.kategori}</span><span>${rupiah(r.jumlah)} (${r.persen.toFixed(1)}%)</span></div>
+        <div class="rincian-bar-bg"><div class="rincian-bar-fill" style="width:${r.persen}%"></div></div>
+      </div>`).join('');
+  }
+
+  function renderChartPengeluaran(list) {
+    const ctx = document.getElementById('chartPengeluaran');
+    if (chartPengeluaran) chartPengeluaran.destroy();
+    chartPengeluaran = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: list.map(r => r.kategori),
+        datasets: [{ label: 'Pengeluaran (Rp)', data: list.map(r => r.jumlah), backgroundColor: '#e53935' }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  }
+
+  /* ============== ARUS KAS ============== */
+  function loadArusKas() {
+    const p = currentPeriodParams();
+    google.script.run.withSuccessHandler(renderArusKas).withFailureHandler(showErr)
+      .getArusKas(CURRENT_LEDGER, p.type, p);
+  }
+
+  function renderArusKas(list) {
+    document.getElementById('arusKasBody').innerHTML = list.map(r => `
+      <tr><td>${r.akun}</td><td>${rupiah(r.masukPeriode)}</td><td>${rupiah(r.keluarPeriode)}</td><td><strong>${rupiah(r.saldoSaatIni)}</strong></td></tr>
+    `).join('') || '<tr><td colspan="4" class="muted">Belum ada data</td></tr>';
+
+    const ctx = document.getElementById('chartArusKas');
+    if (chartArusKas) chartArusKas.destroy();
+    chartArusKas = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: list.map(r => r.akun),
+        datasets: [
+          { label: 'Pemasukan', data: list.map(r => r.masukPeriode), backgroundColor: '#43a047' },
+          { label: 'Pengeluaran', data: list.map(r => r.keluarPeriode), backgroundColor: '#e53935' }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+
+  /* ============== PENGATURAN: KATEGORI/AKUN ============== */
+  function loadPengaturan() {
+    google.script.run.withSuccessHandler(res => {
+      PENGATURAN_CACHE = res;
+      renderPengaturanLists();
+      populateFormSelects();
+    }).withFailureHandler(showErr).getPengaturan(CURRENT_LEDGER);
+  }
+
+  function renderPengaturanLists() {
+    const readOnly = CURRENT_ROLE === 'viewer';
+    document.getElementById('listKategori').innerHTML = PENGATURAN_CACHE.kategori.map(k =>
+      `<li>${k} ${readOnly ? '' : `<button onclick="removePengaturan('kategori','${escapeQ(k)}')">×</button>`}</li>`).join('');
+    document.getElementById('listAkun').innerHTML = PENGATURAN_CACHE.akun.map(a =>
+      `<li>${a} ${readOnly ? '' : `<button onclick="removePengaturan('akun','${escapeQ(a)}')">×</button>`}</li>`).join('');
+  }
+
+  function populateFormSelects() {
+    document.getElementById('fKategori').innerHTML = PENGATURAN_CACHE.kategori.map(k => `<option>${k}</option>`).join('');
+    document.getElementById('fAkun').innerHTML = PENGATURAN_CACHE.akun.map(a => `<option>${a}</option>`).join('');
+  }
+
+  function addPengaturan(kolom) {
+    const inputId = kolom === 'kategori' ? 'newKategori' : 'newAkun';
+    const val = document.getElementById(inputId).value.trim();
+    if (!val) return;
+    google.script.run.withSuccessHandler(res => {
+      PENGATURAN_CACHE = res; renderPengaturanLists(); populateFormSelects();
+      document.getElementById(inputId).value = ''; toast('Ditambahkan');
+    }).withFailureHandler(showErr).addPengaturanItem(CURRENT_LEDGER, kolom, val);
+  }
+
+  function removePengaturan(kolom, value) {
+    if (!confirm(`Hapus "${value}"?`)) return;
+    google.script.run.withSuccessHandler(res => {
+      PENGATURAN_CACHE = res; renderPengaturanLists(); populateFormSelects(); toast('Dihapus');
+    }).withFailureHandler(showErr).deletePengaturanItem(CURRENT_LEDGER, kolom, value);
+  }
+
+  /* ============== TRANSAKSI ============== */
+  function loadTransaksi() {
+    google.script.run.withSuccessHandler(renderTransaksiTable).withFailureHandler(showErr).getTransaksi(CURRENT_LEDGER);
+  }
+
+  function renderTransaksiTable(rows) {
+    const readOnly = CURRENT_ROLE === 'viewer';
+    let lastWeek = null, colorIdx = 0;
+    const body = rows.map(r => {
+      if (r.minggu !== lastWeek) { colorIdx = 1 - colorIdx; lastWeek = r.minggu; }
+      const rowClass = colorIdx === 0 ? 'row-week-a' : 'row-week-b';
+      const tagClass = r.tipe === 'Pemasukan' ? 'tag-in' : r.tipe === 'Pengeluaran' ? 'tag-out' : 'tag-transfer';
+      return `<tr class="${rowClass}">
+        <td>${r.no}</td><td>${r.tanggal}</td><td><span class="tag ${tagClass}">${r.tipe}</span></td>
+        <td>${r.kategori}</td><td>${r.akun}</td><td>${r.deskripsi || ''}</td>
+        <td>${r.debit ? rupiah(r.debit) : ''}</td><td>${r.kredit ? rupiah(r.kredit) : ''}</td>
+        <td>${rupiah(r.saldoAkhir)}</td>
+        <td class="row-actions">${readOnly ? '' : `<button onclick='editTransaksi(${JSON.stringify(r)})'>✏️</button><button onclick="removeTransaksi(${r.rowIndex})">🗑️</button>`}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('transaksiBody').innerHTML = body || '<tr><td colspan="10" class="muted" style="text-align:center">Belum ada transaksi</td></tr>';
+  }
+
+  function submitTransaksi() {
+    const form = {
+      tanggal: document.getElementById('fTanggal').value,
+      tipe: document.getElementById('fTipe').value,
+      kategori: document.getElementById('fKategori').value,
+      akun: document.getElementById('fAkun').value,
+      deskripsi: document.getElementById('fDeskripsi').value,
+      jumlah: document.getElementById('fJumlah').value
+    };
+    if (!form.tanggal || !form.jumlah) { toast('Tanggal & jumlah wajib diisi'); return; }
+    const rowIndex = document.getElementById('editRowIndex').value;
+    const after = (rows) => { renderTransaksiTable(rows); resetForm(); loadDashboard(); loadArusKas(); toast('Tersimpan'); };
+    if (rowIndex) google.script.run.withSuccessHandler(after).withFailureHandler(showErr).updateTransaksi(CURRENT_LEDGER, rowIndex, form);
+    else google.script.run.withSuccessHandler(after).withFailureHandler(showErr).addTransaksi(CURRENT_LEDGER, form);
+  }
+
+  function editTransaksi(r) {
+    document.getElementById('editRowIndex').value = r.rowIndex;
+    document.getElementById('formTitle').innerText = 'Edit Transaksi #' + r.no;
+    document.getElementById('fTanggal').value = toInputDate(r.tanggal);
+    document.getElementById('fTipe').value = r.tipe;
+    document.getElementById('fKategori').value = r.kategori;
+    document.getElementById('fAkun').value = r.akun;
+    document.getElementById('fDeskripsi').value = r.deskripsi;
+    document.getElementById('fJumlah').value = r.debit || r.kredit;
+    document.getElementById('cancelEditBtn').style.display = 'inline-block';
+    switchTab('transaksi'); window.scrollTo(0,0);
+  }
+
+  function removeTransaksi(rowIndex) {
+    if (!confirm('Hapus transaksi ini? Baris di spreadsheet juga akan ikut terhapus.')) return;
+    google.script.run.withSuccessHandler(rows => { renderTransaksiTable(rows); loadDashboard(); loadArusKas(); toast('Dihapus'); })
+      .withFailureHandler(showErr).deleteTransaksi(CURRENT_LEDGER, rowIndex);
+  }
+
+  function resetForm() {
+    document.getElementById('editRowIndex').value = '';
+    document.getElementById('formTitle').innerText = 'Tambah Transaksi';
+    document.getElementById('fTanggal').value = '';
+    document.getElementById('fDeskripsi').value = '';
+    document.getElementById('fJumlah').value = '';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+  }
+
+  /* ============== TANYA AI ============== */
+  let AI_HISTORY = [];
+
+  function askAiQuestion() {
+    const q = document.getElementById('aiQuestion').value.trim();
+    if (!q) return;
+    appendAiMsg('user', q);
+    document.getElementById('aiQuestion').value = '';
+    appendAiMsg('bot', 'Mikir dulu...', true);
+
+    google.script.run.withSuccessHandler(res => {
+      removeAiThinking();
+      if (res.ok) {
+        AI_HISTORY.push({ role: 'user', text: q });
+        AI_HISTORY.push({ role: 'model', text: res.answer });
+        // batasi histori biar payload gak makin membengkak tiap chat
+        if (AI_HISTORY.length > 20) AI_HISTORY = AI_HISTORY.slice(-20);
+        appendAiMsg('bot', res.answer);
+      } else {
+        appendAiMsg('bot', '⚠️ ' + res.error);
+      }
+    }).withFailureHandler(e => { removeAiThinking(); appendAiMsg('bot', '⚠️ ' + e.message); })
+      .askAI(CURRENT_LEDGER, q, AI_HISTORY);
+  }
+
+  function appendAiMsg(who, text, thinking) {
+    const log = document.getElementById('aiChatLog');
+    const div = document.createElement('div');
+    div.className = 'ai-msg ' + who;
+    if (thinking) div.id = 'aiThinking';
+    div.innerText = text;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+  function removeAiThinking() {
+    const el = document.getElementById('aiThinking');
+    if (el) el.remove();
+  }
+
+  /* ============== PENGATURAN: GANTI PIN ============== */
+  function submitChangePin() {
+    const oldPin = document.getElementById('oldPin').value.trim();
+    const newPin = document.getElementById('newPinInput').value.trim();
+    if (!oldPin || !newPin) return;
+    google.script.run.withSuccessHandler(res => {
+      const msg = document.getElementById('pinChangeMsg');
+      if (!res.ok) { msg.style.color = 'var(--red)'; msg.innerText = res.error; return; }
+      msg.style.color = 'green'; msg.innerText = 'PIN berhasil diganti.';
+      document.getElementById('oldPin').value = ''; document.getElementById('newPinInput').value = '';
+    }).withFailureHandler(showErr).changeMyPin(CURRENT_USER_ROW, oldPin, newPin);
+  }
+
+  /* ============== ADMIN: LEDGER ============== */
+  function loadLedgersUI() {
+    google.script.run.withSuccessHandler(res => {
+      renderLedgerList(res);
+      document.getElementById('ledgerNamesList').innerHTML = res.map(l => `<option value="${l}">`).join('');
+    }).withFailureHandler(showErr).getLedgers();
+  }
+  function renderLedgerList(list) {
+    document.getElementById('listLedger').innerHTML = list.map(l =>
+      `<li>${l} <button onclick="deleteLedgerUI('${escapeQ(l)}')">×</button></li>`).join('');
+  }
+  function addLedgerUI() {
+    const name = document.getElementById('newLedgerName').value.trim();
+    if (!name) return;
+    google.script.run.withSuccessHandler(res => {
+      if (!res.ok) { toast(res.error); return; }
+      renderLedgerList(res.ledgers);
+      document.getElementById('ledgerNamesList').innerHTML = res.ledgers.map(l => `<option value="${l}">`).join('');
+      document.getElementById('newLedgerName').value = '';
+      toast('Ledger ditambahkan');
+    }).withFailureHandler(showErr).addLedger(name);
+  }
+  function deleteLedgerUI(name) {
+    if (!confirm(`Hapus ledger "${name}"? Semua transaksi di dalamnya akan hilang permanen.`)) return;
+    google.script.run.withSuccessHandler(res => {
+      renderLedgerList(res.ledgers);
+      document.getElementById('ledgerNamesList').innerHTML = res.ledgers.map(l => `<option value="${l}">`).join('');
+      toast('Ledger dihapus');
+    }).withFailureHandler(showErr).deleteLedger(name);
+  }
+
+  /* ============== ADMIN: USERS (tambah & edit) ============== */
+  function loadUsersUI() {
+    google.script.run.withSuccessHandler(renderUserTable).withFailureHandler(showErr).getUsers();
+  }
+  function renderUserTable(list) {
+    document.getElementById('userTableBody').innerHTML = list.map(u => `
+      <tr><td>${u.nama}</td><td>${u.akses}</td><td>${u.role}</td>
+      <td>
+        <button class="btn btn-ghost" onclick='editUserUI(${JSON.stringify(u)})'>Edit</button>
+        <button class="btn btn-ghost" onclick="deleteUserUI(${u.rowIndex})">Hapus</button>
+      </td></tr>
+    `).join('');
+  }
+
+  function submitUserForm() {
+    const rowIndex = document.getElementById('editUserRowIndex').value;
+    const form = {
+      nama: document.getElementById('newUserNama').value.trim(),
+      pin: document.getElementById('newUserPin').value.trim(),
+      akses: document.getElementById('newUserAkses').value.trim() || 'ALL',
+      role: document.getElementById('newUserRole').value
+    };
+
+    if (rowIndex) {
+      // Mode edit: PIN boleh dikosongkan supaya tidak berubah
+      google.script.run.withSuccessHandler(res => {
+        if (!res.ok) { toast(res.error); return; }
+        renderUserTable(res.users);
+        resetUserForm();
+        toast('User diperbarui');
+      }).withFailureHandler(showErr).updateUser(rowIndex, form);
+    } else {
+      if (!form.nama || !form.pin) { toast('Nama & PIN wajib diisi'); return; }
+      google.script.run.withSuccessHandler(res => {
+        if (!res.ok) { toast(res.error); return; }
+        renderUserTable(res.users);
+        resetUserForm();
+        toast('User ditambahkan');
+      }).withFailureHandler(showErr).addUser(form);
+    }
+  }
+
+  function editUserUI(u) {
+    document.getElementById('editUserRowIndex').value = u.rowIndex;
+    document.getElementById('newUserNama').value = u.nama;
+    document.getElementById('newUserPin').value = '';
+    document.getElementById('newUserAkses').value = u.akses;
+    document.getElementById('newUserRole').value = u.role;
+    document.getElementById('userFormSubmitBtn').innerText = 'Simpan Perubahan';
+    document.getElementById('cancelEditUserBtn').style.display = 'inline-block';
+    document.getElementById('userFormHint').innerText = `Mengedit "${u.nama}". Kosongkan PIN kalau tidak mau menggantinya.`;
+  }
+
+  function resetUserForm() {
+    document.getElementById('editUserRowIndex').value = '';
+    document.getElementById('newUserNama').value = '';
+    document.getElementById('newUserPin').value = '';
+    document.getElementById('newUserAkses').value = 'ALL';
+    document.getElementById('newUserRole').value = 'viewer';
+    document.getElementById('userFormSubmitBtn').innerText = 'Tambah User';
+    document.getElementById('cancelEditUserBtn').style.display = 'none';
+    document.getElementById('userFormHint').innerText = 'Isi Akses dengan nama ledger persis sama (bisa lebih dari satu, pisahkan koma), atau ketik ALL untuk semua ledger.';
+  }
+
+  function deleteUserUI(rowIndex) {
+    if (!confirm('Hapus user ini?')) return;
+    google.script.run.withSuccessHandler(res => {
+      if (!res.ok) { toast(res.error); return; }
+      renderUserTable(res.users);
+    }).withFailureHandler(showErr).deleteUser(rowIndex);
+  }
+
+  /* ============== ADMIN: SPREADSHEET ============== */
+  function loadSpreadsheetInfo() {
+    google.script.run.withSuccessHandler(status => {
+      document.getElementById('currentSpreadsheetName').innerText = status.spreadsheetName || '-';
+    }).withFailureHandler(showErr).getAppStatus();
+  }
+  function changeSpreadsheetUI() {
+    const val = document.getElementById('changeSpreadsheetInput').value.trim();
+    if (!val) return;
+    if (!confirm('Yakin ingin memindahkan aplikasi ke spreadsheet lain?')) return;
+    google.script.run.withSuccessHandler(res => {
+      if (!res.ok) { toast(res.error); return; }
+      toast('Berhasil pindah ke: ' + res.spreadsheetName);
+      setTimeout(() => location.reload(), 1200);
+    }).withFailureHandler(showErr).saveSpreadsheetId(val);
+  }
+
+  /* ============== ADMIN: AI KEY (Gemini) ============== */
+  function loadAiStatus() {
+    google.script.run.withSuccessHandler(res => {
+      document.getElementById('geminiKeyStatus').innerText = res.isSet ? '✅ API key sudah terpasang.' : 'Belum ada API key terpasang.';
+    }).withFailureHandler(showErr).getAiStatus();
+  }
+  function saveGeminiKeyUI() {
+    const key = document.getElementById('geminiKeyInput').value.trim();
+    if (!key) return;
+    google.script.run.withSuccessHandler(res => {
+      document.getElementById('geminiKeyInput').value = '';
+      loadAiStatus();
+      toast('API key disimpan');
+    }).withFailureHandler(showErr).saveGeminiKey(key);
+  }
+
+  /* ============== HELPERS ============== */
+  function enterSubmit(e, fn) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      fn();
+    }
+  }
+  function rupiah(n) { n = Number(n) || 0; return 'Rp ' + n.toLocaleString('id-ID'); }
+  function toInputDate(ddmmyyyy) { const [d,m,y] = ddmmyyyy.split('/'); return `${y}-${m}-${d}`; }
+  function escapeQ(s) { return String(s).replace(/'/g, "\\'"); }
+  function toast(msg) {
+    const t = document.getElementById('toast'); t.innerText = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+  function showErr(e) { console.error(e); toast('Error: ' + (e.message || e)); }
+</script>
