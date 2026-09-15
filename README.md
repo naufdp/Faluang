@@ -1,4 +1,4 @@
-# Faluang — Personal Finance, Multi-Tenant Edition
+# Faluang — Personal Finance
 
 Versi ini mendukung **banyak orang yang tidak saling terhubung**, memakai
 **satu link aplikasi yang sama**, dengan data yang terpisah otomatis per akun
