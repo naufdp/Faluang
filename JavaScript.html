@@ -6,12 +6,14 @@
   let PENGATURAN_CACHE = { kategori: [], akun: [], tipe: [] };
   let chartPengeluaran = null, chartArusKas = null;
   const BULAN_NAMA = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const MONTH_NAMES_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function getBulanNamaList() { return CURRENT_LANG === 'en' ? MONTH_NAMES_EN : BULAN_NAMA; }
 
   /* ============== DARK MODE & BAHASA ============== */
   const I18N = {
     id: {
       setup_title: '⚙️ Setup Faluang', setup_desc: 'Tempel URL atau ID Google Spreadsheet yang mau kamu jadikan database. Kalau ini spreadsheet milik orang lain, minta mereka Share ke email Google kamu (di atas) dulu, minimal sebagai Viewer.', setup_placeholder: 'https://docs.google.com/spreadsheets/d/....', setup_btn: 'Hubungkan',
-      login_tagline: 'Kelola uang, buka peluang', login_sub: 'Masukkan PIN untuk masuk', login_pin_ph: 'PIN', login_btn: 'Masuk', logout: 'Keluar',
+      login_tagline: 'Kelola uang, buka peluang', login_sub: 'Masukkan PIN untuk masuk', login_pin_ph: 'PIN (default: 1234)', login_btn: 'Masuk', logout: 'Keluar',
       tab_dashboard: 'Dashboard', tab_transaksi: 'Transaksi', tab_aruskas: 'Arus Kas', tab_ai: 'Tanya AI', tab_pengaturan: 'Pengaturan',
       period_bulanan: 'Bulanan', period_mingguan: 'Mingguan', period_tahunan: 'Tahunan', period_apply: 'Terapkan',
       sum_pemasukan: 'Total Pemasukan', sum_pengeluaran: 'Total Pengeluaran', sum_transfer_masuk: 'Transfer Masuk', sum_transfer_keluar: 'Transfer Keluar',
@@ -26,6 +28,7 @@
       th_akun2: 'Akun', th_pemasukan: 'Pemasukan', th_pengeluaran: 'Pengeluaran', th_saldo_sekarang: 'Saldo Saat Ini',
       ai_title: 'Tanya AI tentang keuanganmu', ai_desc: 'Jawaban dihasilkan berdasarkan ringkasan data bulan berjalan pada ledger yang sedang aktif. Butuh API Key Gemini kamu sendiri (atur di tab Pengaturan).',
       ai_placeholder: 'cth: pengeluaran terbesar bulan ini kategori apa?', ai_btn: 'Tanya',
+      ai_empty_title: 'Belum ada obrolan', ai_empty_sub: 'Tanya apa aja soal keuanganmu di kolom bawah, misalnya "pengeluaran terbesar bulan ini apa?"',
       pengaturan_kategori_title: 'Kategori (ledger aktif)', kategori_baru_ph: 'Nama kategori baru',
       pengaturan_akun_title: 'Akun/Metode (ledger aktif)', akun_baru_ph: 'Nama akun baru', btn_tambah: 'Tambah',
       ganti_pin_title: 'Ganti PIN Saya', label_pin_lama: 'PIN Lama', label_pin_baru: 'PIN Baru', btn_ganti_pin: 'Ganti PIN',
@@ -39,7 +42,7 @@
     },
     en: {
       setup_title: '⚙️ Faluang Setup', setup_desc: 'Paste the URL or ID of the Google Spreadsheet you want to use as the database. If this spreadsheet belongs to someone else, ask them to Share it with your Google email (above) first, at least as Viewer.', setup_placeholder: 'https://docs.google.com/spreadsheets/d/....', setup_btn: 'Connect',
-      login_tagline: 'Manage money, open opportunity', login_sub: 'Enter your PIN to sign in', login_pin_ph: 'PIN', login_btn: 'Sign in', logout: 'Sign out',
+      login_tagline: 'Manage money, open opportunity', login_sub: 'Enter your PIN to sign in', login_pin_ph: 'PIN (default: 1234)', login_btn: 'Sign in', logout: 'Sign out',
       tab_dashboard: 'Dashboard', tab_transaksi: 'Transactions', tab_aruskas: 'Cash Flow', tab_ai: 'Ask AI', tab_pengaturan: 'Settings',
       period_bulanan: 'Monthly', period_mingguan: 'Weekly', period_tahunan: 'Yearly', period_apply: 'Apply',
       sum_pemasukan: 'Total Income', sum_pengeluaran: 'Total Expense', sum_transfer_masuk: 'Transfer In', sum_transfer_keluar: 'Transfer Out',
@@ -54,6 +57,7 @@
       th_akun2: 'Account', th_pemasukan: 'Income', th_pengeluaran: 'Expense', th_saldo_sekarang: 'Current Balance',
       ai_title: 'Ask AI about your finances', ai_desc: "Answers are generated from a summary of this month's data on the active ledger. Requires your own Gemini API key (set it up in the Settings tab).",
       ai_placeholder: 'e.g.: what was my biggest expense category this month?', ai_btn: 'Ask',
+      ai_empty_title: 'No conversation yet', ai_empty_sub: 'Ask anything about your finances below, e.g. "what was my biggest expense this month?"',
       pengaturan_kategori_title: 'Categories (active ledger)', kategori_baru_ph: 'New category name',
       pengaturan_akun_title: 'Accounts/Methods (active ledger)', akun_baru_ph: 'New account name', btn_tambah: 'Add',
       ganti_pin_title: 'Change My PIN', label_pin_lama: 'Old PIN', label_pin_baru: 'New PIN', btn_ganti_pin: 'Change PIN',
@@ -73,6 +77,15 @@
     CURRENT_LANG = lang;
     localStorage.setItem('faluang_lang', lang);
     applyLanguage();
+    refreshBulanOptions();
+  }
+
+  function refreshBulanOptions() {
+    const bulanSel = document.getElementById('periodBulan');
+    if (!bulanSel) return;
+    const currentValue = bulanSel.value;
+    bulanSel.innerHTML = getBulanNamaList().map((b, i) => `<option value="${i+1}">${b}</option>`).join('');
+    if (currentValue) bulanSel.value = currentValue;
   }
 
   function applyLanguage() {
@@ -183,7 +196,7 @@
       const b = document.createElement('button');
       b.innerText = l;
       b.dataset.ledger = l;
-      b.onclick = () => { CURRENT_LEDGER = l; updateLedgerButtons(); AI_HISTORY = []; document.getElementById('aiChatLog').innerHTML = ''; refreshAll(); };
+      b.onclick = () => { CURRENT_LEDGER = l; updateLedgerButtons(); AI_HISTORY = []; refreshAll(); };
       wrap.appendChild(b);
     });
     updateLedgerButtons();
@@ -206,6 +219,7 @@
     loadDashboard();
     loadTransaksi();
     loadArusKas();
+    showAiEmptyState();
     if (CURRENT_ROLE === 'admin') { loadLedgersUI(); loadUsersUI(); loadSpreadsheetInfo(); loadAiStatus(); }
   }
 
@@ -227,7 +241,7 @@
   /* ============== PERIOD ============== */
   function setupPeriodSelectors() {
     const bulanSel = document.getElementById('periodBulan');
-    bulanSel.innerHTML = BULAN_NAMA.map((b, i) => `<option value="${i+1}">${b}</option>`).join('');
+    bulanSel.innerHTML = getBulanNamaList().map((b, i) => `<option value="${i+1}">${b}</option>`).join('');
     const now = new Date();
     bulanSel.value = now.getMonth() + 1;
 
@@ -288,8 +302,17 @@
       </div>`).join('');
   }
 
+  function chartThemeColors() {
+    const dark = document.documentElement.classList.contains('dark-mode');
+    return {
+      text: dark ? '#e9e9ea' : '#222',
+      grid: dark ? '#33373f' : '#e3e6ea'
+    };
+  }
+
   function renderChartPengeluaran(list) {
     const ctx = document.getElementById('chartPengeluaran');
+    const c = chartThemeColors();
     if (chartPengeluaran) chartPengeluaran.destroy();
     chartPengeluaran = new Chart(ctx, {
       type: 'bar',
@@ -297,7 +320,14 @@
         labels: list.map(r => r.kategori),
         datasets: [{ label: 'Pengeluaran (Rp)', data: list.map(r => r.jumlah), backgroundColor: '#e53935' }]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: c.text }, grid: { color: c.grid } },
+          y: { ticks: { color: c.text }, grid: { color: c.grid } }
+        }
+      }
     });
   }
 
@@ -314,6 +344,7 @@
     `).join('') || '<tr><td colspan="4" class="muted">Belum ada data</td></tr>';
 
     const ctx = document.getElementById('chartArusKas');
+    const c = chartThemeColors();
     if (chartArusKas) chartArusKas.destroy();
     chartArusKas = new Chart(ctx, {
       type: 'bar',
@@ -324,7 +355,14 @@
           { label: 'Pengeluaran', data: list.map(r => r.keluarPeriode), backgroundColor: '#e53935' }
         ]
       },
-      options: { responsive: true, maintainAspectRatio: false }
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: c.text } } },
+        scales: {
+          x: { ticks: { color: c.text }, grid: { color: c.grid } },
+          y: { ticks: { color: c.text }, grid: { color: c.grid } }
+        }
+      }
     });
   }
 
@@ -437,6 +475,19 @@
   /* ============== TANYA AI ============== */
   let AI_HISTORY = [];
 
+  function aiEmptyStateHtml() {
+    const dict = I18N[CURRENT_LANG] || I18N.id;
+    return `<div class="ai-empty-state">
+      <div class="ai-empty-icon">💬</div>
+      <p>${dict.ai_empty_title}</p>
+      <p class="muted" style="font-size:12px">${dict.ai_empty_sub}</p>
+    </div>`;
+  }
+
+  function showAiEmptyState() {
+    document.getElementById('aiChatLog').innerHTML = aiEmptyStateHtml();
+  }
+
   function askAiQuestion() {
     const q = document.getElementById('aiQuestion').value.trim();
     if (!q) return;
@@ -461,6 +512,9 @@
 
   function appendAiMsg(who, text, thinking) {
     const log = document.getElementById('aiChatLog');
+    const emptyState = log.querySelector('.ai-empty-state');
+    if (emptyState) emptyState.remove();
+
     const div = document.createElement('div');
     div.className = 'ai-msg ' + who;
     if (thinking) div.id = 'aiThinking';

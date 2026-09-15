@@ -159,7 +159,14 @@
   .ai-log {
     max-height: 320px; overflow-y: auto; border: 1px solid var(--border);
     border-radius: 8px; padding: 10px; margin-bottom: 12px; background: var(--bg);
+    min-height: 160px;
   }
+  .ai-empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 140px; text-align: center; color: var(--muted); gap: 4px;
+  }
+  .ai-empty-icon { font-size: 32px; opacity: .6; margin-bottom: 4px; }
+  .ai-empty-state p { margin: 0; }
   .ai-msg { padding: 8px 12px; border-radius: 10px; margin-bottom: 8px; font-size: 13px; max-width: 85%; }
   .ai-msg.user { background: var(--green); color: #fff; margin-left: auto; }
   .ai-msg.bot { background: #eef2f5; color: var(--text); }
