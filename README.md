@@ -1,6 +1,6 @@
 # Faluang — Personal Finance
 
-Versi ini mendukung **banyak orang yang tidak saling terhubung**, memakai
+Mendukung **banyak orang yang tidak saling terhubung**, memakai
 **satu link aplikasi yang sama**, dengan data yang terpisah otomatis per akun
 Google. Tidak ada PIN lagi di lapisan paling luar — login memakai akun Google
 asli, lalu setiap akun Google dihubungkan ke spreadsheet miliknya sendiri.
